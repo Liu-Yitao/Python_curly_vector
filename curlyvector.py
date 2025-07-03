@@ -93,12 +93,17 @@ class CurlyVector:
 
     def _get_path_vertices(self):
         """
-        Compute curved path vertices from tail to head via backward integration.
+        Compute curved path vertices for bidirectional curly vector.
+        Grid point lies in the middle, with equal propagation forward and backward.
         
         Returns:
         --------
-        list or None
-            List of (x, y) coordinates from tail to head, or None if invalid
+        tuple or None
+            (path_vertices, arrow_start, arrow_end) where:
+            - path_vertices: List of (x, y) coordinates for the full curved path
+            - arrow_start: (x, y) coordinates where arrowhead starts
+            - arrow_end: (x, y) coordinates where arrowhead points (forward direction)
+            Returns None if invalid
         """
         # Check for invalid vectors
         if np.isnan(self.u) or np.isnan(self.v):
@@ -112,14 +117,16 @@ class CurlyVector:
         # Set integration step size
         step_size = min(s0 / 100.0, 0.01) if self.step_size is None else self.step_size
         
-        # Start backward integration from head position
-        points = [(self.x, self.y)]
+        # Half distance for each direction
+        half_distance = s0 / 2.0
+        
+        # BACKWARD INTEGRATION (from grid point to tail)
+        backward_points = []
         total_length = 0
         current = np.array([self.x, self.y])
         steps = 0
         
-        # Backward integration to find tail position
-        while total_length < s0 and steps < self.max_steps:
+        while total_length < half_distance and steps < self.max_steps:
             try:
                 # Get vector at current position
                 uv = self.interpolator(np.array([[current[0], current[1]]]))
@@ -134,26 +141,80 @@ class CurlyVector:
                     break
 
                 # Take step in backward direction
-                step = min(step_size, s0 - total_length)
+                step = min(step_size, half_distance - total_length)
                 direction = np.array([-u, -v]) / speed  # Backward direction
                 current = current + step * direction
                 total_length += step
-                points.append(tuple(current))
+                backward_points.append(tuple(current))
                 steps += 1
                 
             except Exception:
                 break
+        
+        # FORWARD INTEGRATION (from grid point to head)
+        forward_points = []
+        total_length = 0
+        current = np.array([self.x, self.y])
+        steps = 0
+        
+        while total_length < half_distance and steps < self.max_steps:
+            try:
+                # Get vector at current position
+                uv = self.interpolator(np.array([[current[0], current[1]]]))
+                u, v = uv[0]
                 
-        # Need at least 2 points for a valid path
-        if len(points) < 2:
+                # Handle invalid interpolation results
+                if np.isnan(u) or np.isnan(v):
+                    break
+                    
+                speed = np.hypot(u, v)
+                if speed < 1e-6:  # Handle zero vectors
+                    break
+
+                # Take step in forward direction
+                step = min(step_size, half_distance - total_length)
+                direction = np.array([u, v]) / speed  # Forward direction
+                current = current + step * direction
+                total_length += step
+                forward_points.append(tuple(current))
+                steps += 1
+                
+            except Exception:
+                break
+        
+        # Combine paths: backward (reversed) + grid point + forward
+        if len(backward_points) == 0 and len(forward_points) == 0:
             return None
             
-        # Return path from tail to head
-        return list(reversed(points))
+        # Create full path from tail to head
+        full_path = list(reversed(backward_points)) + [(self.x, self.y)] + forward_points
+        
+        # Need at least 2 points for a valid path
+        if len(full_path) < 2:
+            return None
+        
+        # Calculate arrowhead position (on the forward part)
+        if len(forward_points) > 0:
+            # Arrow points from grid point to end of forward integration
+            arrow_start = (self.x, self.y)
+            arrow_end = forward_points[-1]
+        else:
+            # Fallback: use direction from backward integration
+            if len(backward_points) > 0:
+                # Arrow points from second-to-last to last point
+                if len(full_path) >= 2:
+                    arrow_start = full_path[-2]
+                    arrow_end = full_path[-1]
+                else:
+                    return None
+            else:
+                return None
+            
+        return full_path, arrow_start, arrow_end
 
     def get_arrow_patch(self, target_crs=None):
         """
-        Create matplotlib arrow patch for rendering.
+        Create matplotlib arrow patch for bidirectional curly vector rendering.
         
         Parameters:
         -----------
@@ -165,9 +226,13 @@ class CurlyVector:
         FancyArrowPatch or None
             Matplotlib arrow patch ready for adding to axes
         """
-        # Get path vertices
-        verts = self._get_path_vertices()
-        if verts is None or len(verts) < 2:
+        # Get path vertices and arrow direction
+        path_data = self._get_path_vertices()
+        if path_data is None:
+            return None
+            
+        verts, arrow_start, arrow_end = path_data
+        if len(verts) < 2:
             return None
 
         # Create path codes for matplotlib
@@ -188,11 +253,27 @@ class CurlyVector:
                 return None
                 
             path = Path(transformed_verts, codes)
+            
+            # Also transform arrow direction points
+            try:
+                transformed_start = target_crs.transform_point(arrow_start[0], arrow_start[1], self.transform)
+                transformed_end = target_crs.transform_point(arrow_end[0], arrow_end[1], self.transform)
+                arrow_start = transformed_start
+                arrow_end = transformed_end
+            except Exception:
+                # Use original coordinates if transformation fails
+                pass
         else:
             path = Path(verts, codes)
         
-        # Calculate absolute arrowhead dimensions with min/max size limits based on linewidth
-        arrow_length = self.scale * np.hypot(self.u, self.v)
+        # Calculate arrowhead dimensions based on arrow direction
+        arrow_dx = arrow_end[0] - arrow_start[0]
+        arrow_dy = arrow_end[1] - arrow_start[1]
+        arrow_length = np.sqrt(arrow_dx**2 + arrow_dy**2)
+        
+        if arrow_length < 1e-6:
+            # Fallback to original vector direction
+            arrow_length = self.scale * np.hypot(self.u, self.v)
         
         # Get linewidth from kwargs, default to 1.0 if not specified
         linewidth = self.kwargs.get('linewidth', 1.0)
@@ -211,7 +292,7 @@ class CurlyVector:
         arrow_kwargs = {k: v for k, v in self.kwargs.items() 
                        if k not in ['min_head_size_factor', 'max_head_size_factor']}
         
-        # Create arrow patch
+        # Create arrow patch with the curved path
         arrow = FancyArrowPatch(
             path=path,
             arrowstyle=f"->,head_length={abs_head_length},head_width={abs_head_width}",
@@ -296,11 +377,11 @@ def curly_vector_plot(ax, X, Y, U, V, transform=None, scale=1.0, step_size=None,
                       max_steps=1000, head_length=0.3, head_width=0.12, 
                       min_head_size_factor=2.0, max_head_size_factor=6.0, **kwargs):
     """
-    Plot a field of curly vectors on matplotlib axes.
+    Plot a field of bidirectional curly vectors where grid points lie in the middle.
     
-    This is the main plotting function that creates curved arrows for each
-    valid grid point in the vector field. Works seamlessly with both regular
-    matplotlib axes and Cartopy GeoAxes.
+    This function creates curved arrows that propagate both forward and backward from
+    each grid point, with the grid point positioned at the center of each vector.
+    The arrowhead points in the forward direction of the vector field.
     
     Parameters:
     -----------
@@ -315,26 +396,20 @@ def curly_vector_plot(ax, X, Y, U, V, transform=None, scale=1.0, step_size=None,
         Source coordinate reference system for geographic data
         Use ccrs.PlateCarree() for lat/lon data
     scale : float, default=1.0
-        Scale factor for arrow lengths
+        Scale factor for arrow lengths (total length = scale * magnitude)
     step_size : float, optional
         Integration step size (auto-calculated if None)
         For geographic data, use larger values (e.g., 0.5-2.0)
     max_steps : int, default=1000
-        Maximum integration steps per arrow
+        Maximum integration steps per arrow direction
     head_length : float, default=0.3
         Arrowhead length as fraction of arrow length
-    head_width : float, default=0.15
-        Arrowhead width as fraction of arrow length (reduced for sharper arrows)
+    head_width : float, default=0.12
+        Arrowhead width as fraction of arrow length
     min_head_size_factor : float, default=2.0
-        Minimum arrowhead size factor based on linewidth.
-        Ensures arrowheads remain visible even for slow wind speeds.
-        min_head_length = linewidth * min_head_size_factor
-        min_head_width = linewidth * min_head_size_factor
-    max_head_size_factor : float, default=8.0
-        Maximum arrowhead size factor based on linewidth.
-        Prevents arrowheads from becoming too large for fast wind speeds.
-        max_head_length = linewidth * max_head_size_factor
-        max_head_width = linewidth * max_head_size_factor
+        Minimum arrowhead size factor based on linewidth
+    max_head_size_factor : float, default=6.0
+        Maximum arrowhead size factor based on linewidth
     **kwargs : dict
         Additional styling arguments (color, linewidth, alpha, etc.)
         
@@ -355,15 +430,6 @@ def curly_vector_plot(ax, X, Y, U, V, transform=None, scale=1.0, step_size=None,
     ax = plt.axes(projection=ccrs.PlateCarree())
     curly_vector_plot(ax, lon_grid, lat_grid, u_wind, v_wind, 
                      transform=ccrs.PlateCarree(), scale=0.5)
-    
-    # With custom minimum arrowhead size for better visibility
-    curly_vector_plot(ax, x_grid, y_grid, u_data, v_data,
-                     linewidth=2.0, min_head_size_factor=1.5)
-    
-    # With both minimum and maximum arrowhead size limits and sharper arrows
-    curly_vector_plot(ax, x_grid, y_grid, u_data, v_data,
-                     linewidth=1.5, head_width=0.12, 
-                     min_head_size_factor=2.0, max_head_size_factor=6.0)
     """
     # Create field interpolator
     interpolator = create_field_interpolator(X, Y, U, V)
@@ -400,7 +466,7 @@ def curly_vector_plot(ax, X, Y, U, V, transform=None, scale=1.0, step_size=None,
             if np.hypot(u, v) < 1e-6:
                 continue
                 
-            # Create curly vector
+            # Create bidirectional curly vector
             vector = CurlyVector(
                 x, y, u, v, interpolator, 
                 transform=transform,
@@ -441,7 +507,7 @@ def curly_vector_plot(ax, X, Y, U, V, transform=None, scale=1.0, step_size=None,
 
 def curly_vector_key(ax, X, Y, U, V, scale=1.0, key_length=1.0, label='1 unit', 
                      box=True, spacing=None, box_size=1.0, 
-                     loc=None, loc_coordinate='axes', head_length=0.3, head_width=0.12,
+                     loc=None, loc_coordinate='axes', head_length=0.3, head_width=0.12, fontsize=10, 
                      min_head_size_factor=2.0, max_head_size_factor=6.0, **kwargs):
     """
     Add a straight legend key for curly vectors with optional background box.
@@ -580,7 +646,7 @@ def curly_vector_key(ax, X, Y, U, V, scale=1.0, key_length=1.0, label='1 unit',
                 try:
                     x_range = np.nanmax(X) - np.nanmin(X)
                     y_range = np.nanmax(Y) - np.nanmin(Y)
-                    base_box_height = 0.08 * y_range
+                    base_box_height = 0.10 * y_range
                 except:
                     # Fallback if X,Y are not available
                     base_box_height = dx * 0.5
@@ -589,10 +655,10 @@ def curly_vector_key(ax, X, Y, U, V, scale=1.0, key_length=1.0, label='1 unit',
                 xlim = ax.get_xlim()
                 ylim = ax.get_ylim()
                 y_range = ylim[1] - ylim[0]
-                base_box_height = 0.08 * y_range
+                base_box_height = 0.10 * y_range
         elif spacing is None:
             y_range = np.nanmax(Y) - np.nanmin(Y)
-            base_box_height = 0.08 * y_range
+            base_box_height = 0.10 * y_range
         else:
             base_box_height = spacing * 0.8  # Consistent box height
         
@@ -654,7 +720,7 @@ def curly_vector_key(ax, X, Y, U, V, scale=1.0, key_length=1.0, label='1 unit',
         if loc_coordinate == 'data':
             try:
                 y_range = np.nanmax(Y) - np.nanmin(Y)
-                text_y_offset = 0.03 * y_range
+                text_y_offset = 0.045 * y_range
             except:
                 # Fallback if Y is not available
                 text_y_offset = dx * 0.2
@@ -662,33 +728,15 @@ def curly_vector_key(ax, X, Y, U, V, scale=1.0, key_length=1.0, label='1 unit',
             # For axes/figure coordinates, use relative sizing
             ylim = ax.get_ylim()
             y_range = ylim[1] - ylim[0]
-            text_y_offset = 0.03 * y_range
+            text_y_offset = 0.045 * y_range
     elif spacing is None:
         y_range = np.nanmax(Y) - np.nanmin(Y)
-        text_y_offset = 0.03 * y_range
+        text_y_offset = 0.045 * y_range
     else:
         text_y_offset = spacing * 0.3  # Consistent text offset
         
     ax.text(x0 + dx/2, y0 + text_y_offset, label, 
-            ha='center', va='bottom', fontsize=10, zorder=102,
+            ha='center', va='center_baseline', fontsize=fontsize, zorder=102,
             bbox=dict(boxstyle="round,pad=0.1", facecolor='white', alpha=0.8) if not box else None)
 
-    # Handle backward compatibility for deprecated parameters
-    if 'key_pos' in kwargs:
-        import warnings
-        warnings.warn("'key_pos' parameter is deprecated and no longer supported. Use 'loc' parameter for exact positioning.", 
-                     DeprecationWarning, stacklevel=2)
-        kwargs.pop('key_pos')
-    
-    if 'position' in kwargs:
-        import warnings
-        warnings.warn("'position' parameter is deprecated and no longer supported. Use 'loc' parameter for exact positioning.", 
-                     DeprecationWarning, stacklevel=2)
-        kwargs.pop('position')
-    
-    if 'position_text' in kwargs:
-        import warnings
-        warnings.warn("'position_text' parameter is deprecated and no longer supported. Use 'loc' parameter for exact positioning.", 
-                     DeprecationWarning, stacklevel=2)
-        kwargs.pop('position_text')
 
