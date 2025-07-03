@@ -6,6 +6,8 @@ A Python library for creating curly vector field visualizations with matplotlib 
 
 CurlyVector creates curved arrows that follow vector field lines, with arrow lengths proportional to vector magnitude. Unlike traditional straight arrows, curly vectors provide a more intuitive visualization of flow fields by showing the actual path particles would follow. (comparing with defalt Matplotlib quiver)
 
+It can only work with projection=ccrs.PlateCarree() now (for a correct vecotor key).
+
 ![Geo Curly Vector Example](./doc/quiver_NCEP_850hPa_JJA.png)
 
 ### Basic Usage
