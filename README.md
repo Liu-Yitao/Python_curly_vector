@@ -8,7 +8,7 @@ CurlyVector creates curved arrows that follow vector field lines, with arrow len
 
 It can only work with projection=ccrs.PlateCarree() now (for a correct vecotor key).
 
-![Geo Curly Vector Example](./doc/quiver_NCEP_850hPa_JJA.png)
+![Geo Curly Vector Example](./doc/quiver_NCEP_850hPa_JJA_compare.png)
 
 ### Basic Usage
 
@@ -37,7 +37,26 @@ plt.show()
 
 ### Geographic Data with Cartopy
 
-see the Jupyter notebook `./doc/curly_vector.ipynb`
+```Python
+# see detail in ./doc/curly_vector.ipynb
+# some code hidden
+params = {'head_length': 0.5, 'head_width': 0.03, 'linewidth': 0.8, 'scale': 1.5, 'color': 'k'}
+
+# Plot bidirectional curly vectors (now the default curly_vector_plot)
+curly_vector_plot(ax1, lon_sub, lat_sub, u_sub, v_sub, 
+                 transform=ccrs.PlateCarree(), 
+                 **params)
+
+# Add legend with proper parameters
+curly_vector_key(ax1, lon_sub, lat_sub, u_sub, v_sub, 
+                 key_length=5, label='5 m/s', 
+                 loc=[0.08, 0.9], loc_coordinate='axes', 
+                 fontsize=10, 
+                 box=True, box_size=1.1, 
+                 **params)
+# some code hidden
+```
+<img src="./doc/quiver_NCEP_850hPa_JJA_1fig.png" alt="Curly Vector Example" width="400"/>
 
 ## Contact
 
