@@ -45,3 +45,7 @@ see the Jupyter notebook `./doc/curly_vector.ipynb`
 - **Email**: liuyitao97@outlook.com
 - **Created**: June 2025
 
+---
+
+This is done with AI Copilot.
+
