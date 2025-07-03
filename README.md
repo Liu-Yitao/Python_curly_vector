@@ -10,7 +10,45 @@ It can only work with projection=ccrs.PlateCarree() now (for a correct vecotor k
 
 ![Geo Curly Vector Example](./doc/quiver_NCEP_850hPa_JJA_compare.png)
 
-### Basic Usage
+## Dependencies
+
+### Required Dependencies
+- **numpy** - Numerical computing and array operations
+- **matplotlib** - Plotting and visualization
+- **scipy** - Scientific computing (specifically `scipy.interpolate`)
+
+### Optional Dependencies
+- **cartopy** - Geographic projections and mapping (required for geographic data visualization)
+- **xarray** - Labeled multi-dimensional arrays (for working with NetCDF data in examples)
+
+### Installation
+
+You can install the required dependencies using pip:
+
+```bash
+# Core dependencies
+pip install numpy matplotlib scipy
+
+# For geographic functionality
+pip install cartopy
+
+# For working with NetCDF data (used in examples)
+pip install xarray netcdf4
+```
+
+Or install all dependencies at once:
+```bash
+pip install numpy matplotlib scipy cartopy xarray netcdf4
+```
+
+Or install via conda
+```bash
+conda install -c conda-forge numpy matplotlib scipy cartopy xarray netcdf4
+```
+
+---
+
+## Basic Usage
 
 ```python
 import numpy as np
@@ -35,7 +73,7 @@ plt.show()
 <img src="./doc/curly_vector_example.png" alt="Curly Vector Example" width="400"/>
 
 
-### Geographic Data with Cartopy
+## Geographic Data with Cartopy
 
 ```Python
 # see detail in ./doc/curly_vector.ipynb
@@ -56,7 +94,7 @@ curly_vector_key(ax1, lon_sub, lat_sub, u_sub, v_sub,
                  **params)
 # some code hidden
 ```
-<img src="./doc/quiver_NCEP_850hPa_JJA_1fig.png" alt="Curly Vector Example" width="400"/>
+<img src="./doc/quiver_NCEP_850hPa_JJA_1fig.png" alt="Geo Curly Vector Example" width="400"/>
 
 ## Contact
 
