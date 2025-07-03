@@ -45,6 +45,3 @@ see the Jupyter notebook `./doc/curly_vector.ipynb`
 - **Email**: liuyitao97@outlook.com
 - **Created**: June 2025
 
----
-
-*CurlyVector - Making vector fields beautiful, one curve at a time* 
