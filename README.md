@@ -19,7 +19,8 @@ It can only work with projection=ccrs.PlateCarree() now (for a correct vecotor k
 
 ### Optional Dependencies
 - **cartopy** - Geographic projections and mapping (required for geographic data visualization)
-- **xarray** - Labeled multi-dimensional arrays (for working with NetCDF data in examples)
+- **xarray** - Labeled multi-dimensional arrays 
+- **netcdf4** - for working with NetCDF data
 
 ### Installation
 
