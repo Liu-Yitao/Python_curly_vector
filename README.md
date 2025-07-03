@@ -40,6 +40,10 @@ see the Jupyter notebook
 - **Email**: liuyitao97@outlook.com
 - **Created**: June 2025
 
+## Notification
+
+this is done with help from AI copilot.
+
 ---
 
 *CurlyVector - Making vector fields beautiful, one curve at a time* 
