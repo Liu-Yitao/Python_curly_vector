@@ -33,18 +33,6 @@ plt.show()
 
 see the Jupyter notebook
 
-## Citation
-
-If you use CurlyVector in your research, please cite:
-
-```bibtex
-@software{curlyvector2025,
-  title={CurlyVector: Field-following vector visualization for Python},
-  author={Yitao Liu},
-  year={2025},
-  url={https://github.com/yourusername/curlyvector}
-}
-```
 
 ## Contact
 
