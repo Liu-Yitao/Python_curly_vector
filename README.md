@@ -81,7 +81,7 @@ plt.show()
 # some code hidden
 params = {'head_length': 0.5, 'head_width': 0.03, 'linewidth': 0.8, 'scale': 1.5, 'color': 'k'}
 
-# Plot bidirectional curly vectors (now the default curly_vector_plot)
+# Plot curly vectors
 curly_vector_plot(ax1, lon_sub, lat_sub, u_sub, v_sub, 
                  transform=ccrs.PlateCarree(), 
                  **params)
