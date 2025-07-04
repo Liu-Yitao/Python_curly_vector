@@ -57,8 +57,8 @@ import matplotlib.pyplot as plt
 from curlyvector import curly_vector_plot, curly_vector_key
 
 # Create sample data
-x = np.linspace(0, 10, 20)
-y = np.linspace(0, 10, 20)
+x = np.linspace(0, 10, 5)
+y = np.linspace(0, 10, 5)
 X, Y = np.meshgrid(x, y)
 U = -Y  # Circular flow
 V = X
